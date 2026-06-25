@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.env
+*.egg-info/
+
+# Node
+node_modules/
+agent-ui/dist/
+
+# Claude local settings
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db

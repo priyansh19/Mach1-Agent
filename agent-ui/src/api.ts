@@ -1,0 +1,25 @@
+import type { Capabilities, ChatResponse } from './types';
+
+export async function fetchCapabilities(): Promise<Capabilities> {
+  const res = await fetch('/capabilities');
+  if (!res.ok) throw new Error('Server unreachable');
+  return res.json() as Promise<Capabilities>;
+}
+
+export async function sendChat(message: string): Promise<ChatResponse> {
+  const res = await fetch('/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+  });
+  if (!res.ok) throw new Error('Chat request failed');
+  return res.json() as Promise<ChatResponse>;
+}
+
+export async function clearConversation(): Promise<void> {
+  try {
+    await fetch('/clear', { method: 'POST' });
+  } catch {
+    // older agents may not support /clear yet — that's fine
+  }
+}
