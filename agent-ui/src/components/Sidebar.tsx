@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import type { Capabilities, ConnectionStatus } from '../types';
 
 interface Props {
   capabilities: Capabilities | null;
   status: ConnectionStatus;
   onClear: () => void;
+  onSetPersona: (persona: string) => void;
 }
 
 const STATUS_LABEL: Record<ConnectionStatus, string> = {
@@ -12,7 +14,18 @@ const STATUS_LABEL: Record<ConnectionStatus, string> = {
   offline:    'Offline — retrying…',
 };
 
-export function Sidebar({ capabilities, status, onClear }: Props) {
+const DEFAULT_PERSONA = 'You are a helpful assistant who replies in a concise and friendly manner.';
+
+export function Sidebar({ capabilities, status, onClear, onSetPersona }: Props) {
+  const [persona, setPersona] = useState(DEFAULT_PERSONA);
+  const [applied, setApplied] = useState(false);
+
+  function handleApply() {
+    onSetPersona(persona);
+    setApplied(true);
+    setTimeout(() => setApplied(false), 2000);
+  }
+
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
@@ -50,6 +63,26 @@ export function Sidebar({ capabilities, status, onClear }: Props) {
           }
         </div>
       </section>
+
+      {capabilities?.features?.persona && (
+        <section className="sidebar-section">
+          <p className="section-title">Persona</p>
+          <textarea
+            className="persona-input"
+            value={persona}
+            onChange={e => setPersona(e.target.value)}
+            rows={4}
+            placeholder="Describe the assistant's personality…"
+          />
+          <button
+            className={`btn-apply ${applied ? 'btn-apply--done' : ''}`}
+            onClick={handleApply}
+            disabled={status !== 'online'}
+          >
+            {applied ? '✓ Applied' : 'Apply Persona'}
+          </button>
+        </section>
+      )}
 
       <div className="sidebar-footer">
         <button className="btn-new-chat" onClick={onClear}>

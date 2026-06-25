@@ -23,3 +23,15 @@ export async function clearConversation(): Promise<void> {
     // older agents may not support /clear yet — that's fine
   }
 }
+
+export async function setPersona(persona: string): Promise<void> {
+  try {
+    await fetch('/persona', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ persona }),
+    });
+  } catch {
+    // older agents may not support /persona yet — that's fine
+  }
+}

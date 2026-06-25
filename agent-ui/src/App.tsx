@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Capabilities, ChatMessage, ConnectionStatus } from './types';
-import { fetchCapabilities, sendChat, clearConversation } from './api';
+import { fetchCapabilities, sendChat, clearConversation, setPersona } from './api';
 import { Sidebar } from './components/Sidebar';
 import { ChatArea } from './components/ChatArea';
 
@@ -78,12 +78,23 @@ function App() {
     }]);
   }, []);
 
+  const handleSetPersona = useCallback(async (persona: string) => {
+    await setPersona(persona);
+    await clearConversation();
+    setMessages([{
+      id:   uid(),
+      role: 'assistant',
+      text: `Persona updated! I'm now: "${persona}". Start chatting!`,
+    }]);
+  }, []);
+
   return (
     <div className="app">
       <Sidebar
         capabilities={capabilities}
         status={status}
         onClear={handleClear}
+        onSetPersona={handleSetPersona}
       />
       <ChatArea
         messages={messages}
