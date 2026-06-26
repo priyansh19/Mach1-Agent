@@ -92,7 +92,7 @@ export function MessageBubble({ message, showCost, onEdit, onBookmark }: Props) 
         {!loading && !isUser && (confidence !== undefined || handled_by || memory_used || showCost) && (
           <div className="msg-meta-row">
             {confidence !== undefined && <ConfidenceBadge score={confidence} />}
-            {handled_by && <HandledByBadge by={handled_by} />}
+            {handled_by && <HandledByBadge by={handled_by} confidence={confidence} />}
             {memory_used && <span className="memory-badge">🧠 from memory</span>}
             {showCost && handled_by && (
               <span className="cost-badge">{handled_by === 'local llm' ? '$0.00' : '~$0.003'}</span>
@@ -130,11 +130,31 @@ export function MessageBubble({ message, showCost, onEdit, onBookmark }: Props) 
   );
 }
 
-function HandledByBadge({ by }: { by: string }) {
+function HandledByBadge({ by, confidence }: { by: string; confidence?: number }) {
   const isClaude = by.toLowerCase() === 'claude';
+  const [open, setOpen] = useState(false);
   return (
-    <span className={`handled-badge ${isClaude ? 'handled--claude' : 'handled--local'}`}>
-      {isClaude ? 'via Claude' : 'via Local'}
+    <span className="handled-badge-wrap">
+      <span
+        className={`handled-badge handled-badge--clickable ${isClaude ? 'handled--claude' : 'handled--local'}`}
+        onClick={() => setOpen(o => !o)}
+        title="Click to see routing reason"
+      >
+        {isClaude ? 'via Claude' : 'via Local'}
+      </span>
+      {open && (
+        <div className="routing-popover">
+          {confidence !== undefined && (
+            <p className="routing-popover-score">Score: <strong>{confidence}/10</strong></p>
+          )}
+          <p className="routing-popover-reason">
+            {isClaude
+              ? 'Score was below threshold — escalated to Claude CLI'
+              : 'Score met threshold — answered locally on your machine'}
+          </p>
+          {!isClaude && <p className="routing-popover-private">🔒 Never left your device</p>}
+        </div>
+      )}
     </span>
   );
 }

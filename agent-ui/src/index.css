@@ -977,6 +977,88 @@ html, body, #root {
   text-align: center;
 }
 
+/* ── Routing explainer popover ──────────────────────────────────────── */
+.handled-badge-wrap { position: relative; display: inline-block; }
+.handled-badge--clickable { cursor: pointer; }
+.handled-badge--clickable:hover { opacity: 0.8; }
+.routing-popover {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  min-width: 220px;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  z-index: 100;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.routing-popover-score  { color: var(--text-prim); font-weight: 600; margin-bottom: 4px; }
+.routing-popover-reason { color: var(--text-sec); }
+.routing-popover-private { color: var(--green); margin-top: 6px; font-size: 11px; }
+
+/* ── Date group labels ──────────────────────────────────────────────── */
+.date-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: 10px 8px 4px;
+  opacity: 0.7;
+}
+
+/* ── Quick reply chips ──────────────────────────────────────────────── */
+.quick-chips {
+  display: flex;
+  gap: 6px;
+  padding: 6px 20px 2px;
+  flex-wrap: wrap;
+}
+.quick-chip {
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.quick-chip:hover {
+  color: var(--text-sec);
+  border-color: var(--blue);
+  background: rgba(88,166,255,0.08);
+}
+
+/* ── Threshold slider ───────────────────────────────────────────────── */
+.threshold-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.threshold-zone {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+.threshold-zone--local { background: rgba(63,185,80,0.12);  color: var(--green); }
+.threshold-zone--cloud { background: rgba(210,168,255,0.12); color: var(--purple); }
+.threshold-slider {
+  width: 100%;
+  accent-color: var(--blue);
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+.threshold-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
 /* ── Tab bar ────────────────────────────────────────────────────────── */
 .app {
   display: flex;

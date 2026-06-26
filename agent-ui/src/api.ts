@@ -36,3 +36,26 @@ export async function setPersona(persona: string): Promise<void> {
     // older agents may not support /persona yet — that's fine
   }
 }
+
+export async function fetchThreshold(): Promise<number> {
+  try {
+    const res = await fetch('/config');
+    if (!res.ok) return 7;
+    const data = await res.json();
+    return data.threshold ?? 7;
+  } catch {
+    return 7;
+  }
+}
+
+export async function setThreshold(threshold: number): Promise<void> {
+  try {
+    await fetch('/config', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ threshold }),
+    });
+  } catch {
+    // older agents may not support /config yet
+  }
+}

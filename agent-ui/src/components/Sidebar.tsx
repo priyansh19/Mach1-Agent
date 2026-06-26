@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import type { Capabilities, ConnectionStatus, Session } from '../types';
+import { fetchThreshold, setThreshold } from '../api';
 
 interface Props {
   capabilities:    Capabilities | null;
@@ -44,6 +45,7 @@ export function Sidebar({
   onSwitchSession, onNewSession, onDeleteSession, onRenameSession,
   onExportSession, onPinSession, onImportSession, onSetPersona,
 }: Props) {
+  const [threshold,        setThresholdVal]     = useState(7);
   const [persona,          setPersona]          = useState(DEFAULT_PERSONA);
   const [applied,          setApplied]          = useState(false);
   const [search,           setSearch]           = useState('');
@@ -51,6 +53,8 @@ export function Sidebar({
   const [editingId,        setEditingId]        = useState<string | null>(null);
   const [editName,         setEditName]         = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { fetchThreshold().then(setThresholdVal); }, []);
 
   const localCount = sessions.reduce((n, s) => n + s.messages.filter(m => m.handled_by === 'local llm').length, 0);
   const cloudCount = sessions.reduce((n, s) => n + s.messages.filter(m => m.handled_by === 'claude').length, 0);
@@ -129,6 +133,29 @@ export function Sidebar({
         </div>
       </section>
 
+      {capabilities?.features?.triage_routing && (
+        <section className="sidebar-section">
+          <p className="section-title">Routing Threshold</p>
+          <div className="threshold-row">
+            <span className="threshold-zone threshold-zone--local">Local ≥{threshold}</span>
+            <span className="threshold-zone threshold-zone--cloud">Cloud &lt;{threshold}</span>
+          </div>
+          <input
+            type="range"
+            className="threshold-slider"
+            min={1}
+            max={10}
+            value={threshold}
+            onChange={e => {
+              const v = Number(e.target.value);
+              setThresholdVal(v);
+              setThreshold(v);
+            }}
+          />
+          <p className="threshold-label">Escalate to Claude if score &lt; {threshold}</p>
+        </section>
+      )}
+
       {capabilities?.features?.persona && (
         <section className="sidebar-section">
           <p className="section-title">Persona</p>
@@ -184,7 +211,15 @@ export function Sidebar({
 
         <div className="session-list">
           {filtered.length === 0 && <span className="muted">No sessions found</span>}
-          {filtered.map(session => (
+          {DATE_ORDER.map(group => {
+            const groupSessions = filtered.filter(s => !s.pinned && dateGroup(s.createdAt) === group);
+            const pinnedSessions = group === 'Today' ? filtered.filter(s => s.pinned) : [];
+            const all = [...pinnedSessions, ...groupSessions];
+            if (all.length === 0) return null;
+            return (
+              <div key={group}>
+                <p className="date-group-label">{group}</p>
+                {all.map(session => (
             <div
               key={session.id}
               className={`session-item ${session.id === activeId ? 'session-item--active' : ''} ${session.pinned ? 'session-item--pinned' : ''}`}
@@ -219,7 +254,10 @@ export function Sidebar({
                 <button className="session-action-btn session-action-btn--delete" title="Delete" onClick={() => onDeleteSession(session.id)}>×</button>
               </div>
             </div>
-          ))}
+                ))}
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -237,3 +275,16 @@ export function Sidebar({
 function formatKey(key: string): string {
   return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
+
+function dateGroup(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7)  return 'This week';
+  if (diffDays < 30) return 'Last month';
+  return 'Older';
+}
+
+const DATE_ORDER = ['Today', 'Yesterday', 'This week', 'Last month', 'Older'];

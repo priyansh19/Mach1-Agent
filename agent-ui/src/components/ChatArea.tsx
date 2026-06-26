@@ -64,6 +64,18 @@ export function ChatArea({
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); }
+    if (e.key === 'ArrowUp' && !draft) {
+      const lastUser = [...messages].reverse().find(m => m.role === 'user');
+      if (lastUser) {
+        e.preventDefault();
+        onDraftChange(lastUser.text);
+        setTimeout(() => {
+          const ta = textareaRef.current;
+          if (ta) { ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`; }
+        }, 0);
+      }
+    }
   }
 
   const charsLeft = MAX_CHARS - draft.length;
@@ -71,6 +83,9 @@ export function ChatArea({
   const bookmarkCount  = messages.filter(m => m.bookmarked).length;
   const displayMessages = showBookmarksOnly ? messages.filter(m => m.bookmarked) : messages;
   const routingDots    = messages.filter(m => m.role === 'assistant' && m.handled_by && !m.loading);
+  const lastMsg        = messages[messages.length - 1];
+  const showChips      = !disabled && !isGenerating && lastMsg?.role === 'assistant' && !lastMsg?.loading;
+  const CHIPS = ['Tell me more', 'Give an example', 'Explain differently'];
 
   return (
     <div className="chat-wrap">
@@ -126,6 +141,14 @@ export function ChatArea({
 
       {showJump && (
         <button className="btn-jump-bottom" onClick={jumpToBottom} title="Jump to bottom">↓</button>
+      )}
+
+      {showChips && (
+        <div className="quick-chips">
+          {CHIPS.map(chip => (
+            <button key={chip} className="quick-chip" onClick={() => onSend(chip)}>{chip}</button>
+          ))}
+        </div>
       )}
 
       {(showRetry || showUndo) && (
