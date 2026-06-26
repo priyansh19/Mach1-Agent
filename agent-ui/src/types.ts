@@ -27,6 +27,7 @@ export interface ChatMessage {
   sources?: Source[];
   confidence?: number;
   handled_by?: string;
+  memory_used?: boolean;
   timestamp?: string;
   bookmarked?: boolean;
   loading?: boolean;
@@ -38,6 +39,7 @@ export interface ChatResponse {
   sources?: Source[];
   confidence?: number;
   handled_by?: string;
+  memory_used?: boolean;
 }
 
 export interface Session {

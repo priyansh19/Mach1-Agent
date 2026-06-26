@@ -164,12 +164,13 @@ function App() {
       updateSession(targetId, msgs => msgs.map(m =>
         m.id === loadId ? {
           id: loadId, role: 'assistant' as const,
-          text:       data.response,
-          tool_steps: data.tool_steps,
-          sources:    data.sources,
-          confidence: data.confidence,
-          handled_by: data.handled_by,
-          timestamp:  now(),
+          text:        data.response,
+          tool_steps:  data.tool_steps,
+          sources:     data.sources,
+          confidence:  data.confidence,
+          handled_by:  data.handled_by,
+          memory_used: data.memory_used,
+          timestamp:   now(),
         } : m
       ));
     } catch (err) {

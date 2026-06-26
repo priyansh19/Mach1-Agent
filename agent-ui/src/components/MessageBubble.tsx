@@ -14,7 +14,7 @@ function formatTime(iso: string): string {
 }
 
 export function MessageBubble({ message, onEdit, onBookmark }: Props) {
-  const { role, text, tool_steps, sources, confidence, handled_by, timestamp, loading, bookmarked } = message;
+  const { role, text, tool_steps, sources, confidence, handled_by, memory_used, timestamp, loading, bookmarked } = message;
   const isUser = role === 'user';
   const [copied,  setCopied]  = useState(false);
   const [editing, setEditing] = useState(false);
@@ -82,10 +82,11 @@ export function MessageBubble({ message, onEdit, onBookmark }: Props) {
           </div>
         )}
 
-        {!loading && !isUser && (confidence !== undefined || handled_by) && (
+        {!loading && !isUser && (confidence !== undefined || handled_by || memory_used) && (
           <div className="msg-meta-row">
             {confidence !== undefined && <ConfidenceBadge score={confidence} />}
             {handled_by && <HandledByBadge by={handled_by} />}
+            {memory_used && <span className="memory-badge">🧠 from memory</span>}
           </div>
         )}
 
