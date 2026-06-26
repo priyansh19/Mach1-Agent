@@ -1,15 +1,19 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Capabilities, ConnectionStatus, Session } from '../types';
 
 interface Props {
-  capabilities: Capabilities | null;
-  status: ConnectionStatus;
-  sessions: Session[];
-  activeId: string;
+  capabilities:    Capabilities | null;
+  status:          ConnectionStatus;
+  sessions:        Session[];
+  activeId:        string;
   onSwitchSession: (id: string) => void;
-  onNewSession: () => void;
+  onNewSession:    () => void;
   onDeleteSession: (id: string) => void;
-  onSetPersona: (persona: string) => void;
+  onRenameSession: (id: string, name: string) => void;
+  onExportSession: (id: string) => void;
+  onPinSession:    (id: string) => void;
+  onImportSession: (file: File) => void;
+  onSetPersona:    (persona: string) => void;
 }
 
 const STATUS_LABEL: Record<ConnectionStatus, string> = {
@@ -22,27 +26,63 @@ const DEFAULT_PERSONA = 'You are a helpful assistant who replies in a concise an
 
 function formatTime(iso: string): string {
   const date = new Date(iso);
-  const now  = new Date();
-  const isToday = date.toDateString() === now.toDateString();
-  if (isToday) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const n    = new Date();
+  if (date.toDateString() === n.toDateString())
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-function sessionPreview(session: Session): string {
+function getPreview(session: Session): string {
+  if (session.name) return session.name;
   const first = session.messages.find(m => m.role === 'user');
   if (!first) return 'New conversation';
-  return first.text.length > 32 ? first.text.slice(0, 32) + '…' : first.text;
+  return first.text.length > 30 ? first.text.slice(0, 30) + '…' : first.text;
 }
 
-export function Sidebar({ capabilities, status, sessions, activeId, onSwitchSession, onNewSession, onDeleteSession, onSetPersona }: Props) {
-  const [persona, setPersona] = useState(DEFAULT_PERSONA);
-  const [applied, setApplied] = useState(false);
+export function Sidebar({
+  capabilities, status, sessions, activeId,
+  onSwitchSession, onNewSession, onDeleteSession, onRenameSession,
+  onExportSession, onPinSession, onImportSession, onSetPersona,
+}: Props) {
+  const [persona,   setPersona]   = useState(DEFAULT_PERSONA);
+  const [applied,   setApplied]   = useState(false);
+  const [search,    setSearch]    = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName,  setEditName]  = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
 
   function handleApply() {
     onSetPersona(persona);
     setApplied(true);
     setTimeout(() => setApplied(false), 2000);
   }
+
+  function startRename(session: Session) {
+    setEditingId(session.id);
+    setEditName(session.name ?? getPreview(session));
+  }
+
+  function commitRename(id: string) {
+    if (editName.trim()) onRenameSession(id, editName.trim());
+    setEditingId(null);
+  }
+
+  function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) onImportSession(file);
+    e.target.value = '';
+  }
+
+  const sorted = [...sessions].sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return  1;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+
+  const filtered = sorted.filter(s => {
+    if (!search) return true;
+    return getPreview(s).toLowerCase().includes(search.toLowerCase());
+  });
 
   return (
     <aside className="sidebar">
@@ -99,28 +139,63 @@ export function Sidebar({ capabilities, status, sessions, activeId, onSwitchSess
       <section className="sidebar-section session-section">
         <div className="session-header-row">
           <p className="section-title" style={{ marginBottom: 0 }}>Sessions</p>
-          <button className="btn-new-session" onClick={onNewSession} disabled={status !== 'online'}>
-            + New
-          </button>
+          <div className="session-header-btns">
+            <button className="btn-icon-small" title="Import session (.md)" onClick={() => fileRef.current?.click()}>↑</button>
+            <button className="btn-new-session" onClick={onNewSession} disabled={status !== 'online'}>+ New</button>
+          </div>
         </div>
+
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".md,.txt"
+          style={{ display: 'none' }}
+          onChange={handleImportFile}
+        />
+
+        <input
+          className="session-search"
+          placeholder="Search sessions…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+
         <div className="session-list">
-          {sessions.length === 0 && <span className="muted">No sessions yet</span>}
-          {[...sessions].reverse().map(session => (
+          {filtered.length === 0 && <span className="muted">No sessions found</span>}
+          {filtered.map(session => (
             <div
               key={session.id}
-              className={`session-item ${session.id === activeId ? 'session-item--active' : ''}`}
+              className={`session-item ${session.id === activeId ? 'session-item--active' : ''} ${session.pinned ? 'session-item--pinned' : ''}`}
             >
-              <button className="session-body" onClick={() => onSwitchSession(session.id)}>
-                <span className="session-preview">{sessionPreview(session)}</span>
-                <span className="session-time">{formatTime(session.createdAt)}</span>
-              </button>
-              <button
-                className="session-delete"
-                onClick={e => { e.stopPropagation(); onDeleteSession(session.id); }}
-                title="Delete session"
-              >
-                ×
-              </button>
+              {editingId === session.id ? (
+                <input
+                  className="session-rename-input"
+                  value={editName}
+                  autoFocus
+                  onChange={e => setEditName(e.target.value)}
+                  onBlur={() => commitRename(session.id)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') commitRename(session.id);
+                    if (e.key === 'Escape') setEditingId(null);
+                  }}
+                />
+              ) : (
+                <button className="session-body" onClick={() => onSwitchSession(session.id)}>
+                  <span className="session-preview">
+                    {session.pinned && <span className="pin-icon">📌</span>}
+                    {getPreview(session)}
+                  </span>
+                  <span className="session-time">{formatTime(session.createdAt)}</span>
+                </button>
+              )}
+              <div className="session-actions">
+                <button className="session-action-btn" title={session.pinned ? 'Unpin' : 'Pin'} onClick={() => onPinSession(session.id)}>
+                  {session.pinned ? '★' : '☆'}
+                </button>
+                <button className="session-action-btn" title="Rename" onClick={() => startRename(session)}>✎</button>
+                <button className="session-action-btn" title="Export" onClick={() => onExportSession(session.id)}>↓</button>
+                <button className="session-action-btn session-action-btn--delete" title="Delete" onClick={() => onDeleteSession(session.id)}>×</button>
+              </div>
             </div>
           ))}
         </div>
@@ -131,6 +206,7 @@ export function Sidebar({ capabilities, status, sessions, activeId, onSwitchSess
           <div className={`dot dot--${status}`} />
           <span className="muted">{STATUS_LABEL[status]}</span>
         </div>
+        <div className="shortcut-hint">Ctrl+K command palette · Alt+N new session</div>
       </div>
     </aside>
   );

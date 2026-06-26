@@ -27,6 +27,8 @@ export interface ChatMessage {
   sources?: Source[];
   confidence?: number;
   handled_by?: string;
+  timestamp?: string;
+  bookmarked?: boolean;
   loading?: boolean;
 }
 
@@ -40,6 +42,8 @@ export interface ChatResponse {
 
 export interface Session {
   id: string;
+  name?: string;
+  pinned?: boolean;
   createdAt: string;
   messages: ChatMessage[];
   agentName?: string;

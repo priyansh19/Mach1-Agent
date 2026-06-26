@@ -17,7 +17,7 @@ def capabilities():
     return {
         "agent_name": "Confidence Scoring Agent",
         "version": "4.0",
-        "model": "llama3.2",
+        "model": "gemma4:26b",
         "features": {
             "memory": True,
             "persona": False,

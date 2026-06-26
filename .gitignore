@@ -10,6 +10,7 @@ venv/
 # Node
 node_modules/
 agent-ui/dist/
+workspace/*
 
 # Claude local settings
 .claude/
