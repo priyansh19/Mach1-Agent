@@ -4,17 +4,18 @@ import remarkGfm from 'remark-gfm';
 import type { ChatMessage, ToolStep, Source } from '../types';
 
 interface Props {
-  message:   ChatMessage;
-  showCost?: boolean;
-  onEdit?:   (newText: string) => void;
-  onBookmark?: () => void;
+  message:          ChatMessage;
+  showCost?:        boolean;
+  onEdit?:          (newText: string) => void;
+  onBookmark?:      () => void;
+  onOpenArtifact?:  (content: string, lang: string) => void;
 }
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export function MessageBubble({ message, showCost, onEdit, onBookmark }: Props) {
+export function MessageBubble({ message, showCost, onEdit, onBookmark, onOpenArtifact }: Props) {
   const { role, text, tool_steps, sources, confidence, handled_by, memory_used, timestamp, loading, bookmarked } = message;
   const isUser = role === 'user';
   const routingClass = !isUser && handled_by
@@ -85,7 +86,35 @@ export function MessageBubble({ message, showCost, onEdit, onBookmark }: Props) 
           <span className="msg-text">{text}</span>
         ) : (
           <div className="msg-markdown">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                code({ className, children, ...props }) {
+                  const inline = !className;
+                  if (inline) return <code className={className} {...props}>{children}</code>;
+                  const lang = /language-(\w+)/.exec(className || '')?.[1] || '';
+                  const content = String(children).replace(/\n$/, '');
+                  return (
+                    <div className="code-block-wrap">
+                      <div className="code-block-header">
+                        <span className="code-lang">{lang || 'code'}</span>
+                        {onOpenArtifact && (
+                          <button className="btn-open-artifact" onClick={() => onOpenArtifact(content, lang)}>
+                            ⊞ Open in panel
+                          </button>
+                        )}
+                      </div>
+                      <pre><code className={className} {...props}>{children}</code></pre>
+                    </div>
+                  );
+                }
+              }}
+            >{text}</ReactMarkdown>
+          </div>
+        )}
+        {!loading && !isUser && confidence !== undefined && confidence >= 5 && confidence <= 6 && (
+          <div className="confidence-warning">
+            ⚠️ Borderline confidence ({confidence}/10) — answer may need verification
           </div>
         )}
 

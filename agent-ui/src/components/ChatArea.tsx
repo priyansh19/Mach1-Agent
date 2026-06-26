@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, KeyboardEvent } from 'react';
 import type { ChatMessage } from '../types';
 import { MessageBubble } from './MessageBubble';
+import { ArtifactPanel } from './ArtifactPanel';
 
 interface Props {
   messages:          ChatMessage[];
@@ -31,6 +32,7 @@ export function ChatArea({
   const [showJump,         setShowJump]         = useState(false);
   const [showBookmarksOnly, setShowBookmarksOnly] = useState(false);
   const [showCost,          setShowCost]          = useState(false);
+  const [artifact,          setArtifact]          = useState<{content: string; lang: string} | null>(null);
 
   useEffect(() => {
     if (!showJump) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -88,7 +90,7 @@ export function ChatArea({
   const CHIPS = ['Tell me more', 'Give an example', 'Explain differently'];
 
   return (
-    <div className="chat-wrap">
+    <div className={`chat-wrap ${artifact ? 'chat-wrap--with-panel' : ''}`}>
       <div className="chat-header">
         <span>{isArchived ? '📁 Archived session — view only' : '💬 Chat'}</span>
         <div className="chat-header-actions">
@@ -122,6 +124,7 @@ export function ChatArea({
             showCost={showCost}
             onEdit={msg.role === 'user' ? newText => onEditMessage(msg.id, newText) : undefined}
             onBookmark={() => onBookmarkMessage(msg.id)}
+            onOpenArtifact={(content, lang) => setArtifact({ content, lang })}
           />
         ))}
         {routingDots.length > 0 && (
@@ -193,6 +196,13 @@ export function ChatArea({
           </button>
         )}
       </div>
+      {artifact && (
+        <ArtifactPanel
+          content={artifact.content}
+          lang={artifact.lang}
+          onClose={() => setArtifact(null)}
+        />
+      )}
     </div>
   );
 }

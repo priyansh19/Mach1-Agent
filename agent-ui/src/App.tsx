@@ -5,6 +5,7 @@ import { Sidebar } from './components/Sidebar';
 import { ChatArea } from './components/ChatArea';
 import { CommandPalette, type Command } from './components/CommandPalette';
 import { TabBar, type AppMode } from './components/TabBar';
+import { ShortcutCheatsheet } from './components/ShortcutCheatsheet';
 
 let msgCounter = 0;
 const uid          = () => `msg-${++msgCounter}`;
@@ -73,6 +74,7 @@ function App() {
   const [showUndo,      setShowUndo]      = useState(false);
   const [showPalette,   setShowPalette]   = useState(false);
   const [mode,          setMode]          = useState<AppMode>('chat');
+  const [showCheatsheet, setShowCheatsheet] = useState(false);
 
   const retryRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef   = useRef<AbortController | null>(null);
@@ -127,6 +129,7 @@ function App() {
       if ((e.ctrlKey || e.metaKey) && e.key === '1') { e.preventDefault(); setMode('chat'); }
       if ((e.ctrlKey || e.metaKey) && e.key === '2') { e.preventDefault(); setMode('cowork'); }
       if ((e.ctrlKey || e.metaKey) && e.key === '3') { e.preventDefault(); setMode('code'); }
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') { e.preventDefault(); setShowCheatsheet(p => !p); }
     }
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
@@ -245,9 +248,24 @@ function App() {
   }, [capabilities]);
 
   const handleDeleteSession = useCallback((id: string) => {
+    setSessions(prev => prev.map(s => s.id === id ? { ...s, archived: true } : s));
+    if (id === activeId) {
+      setSessions(prev => {
+        const live = prev.filter(s => !s.archived && s.id !== id);
+        setActiveId(live.length > 0 ? live[live.length - 1].id : '');
+        return prev;
+      });
+    }
+  }, [activeId]);
+
+  const handleRestoreSession = useCallback((id: string) => {
+    setSessions(prev => prev.map(s => s.id === id ? { ...s, archived: false } : s));
+  }, []);
+
+  const handlePermanentDelete = useCallback((id: string) => {
     setSessions(prev => {
       const next = prev.filter(s => s.id !== id);
-      if (id === activeId) setActiveId(next.length > 0 ? next[next.length - 1].id : '');
+      if (id === activeId) setActiveId(next.filter(s => !s.archived).slice(-1)[0]?.id ?? '');
       return next;
     });
     setDrafts(prev => { const n = { ...prev }; delete n[id]; return n; });
@@ -337,6 +355,8 @@ function App() {
           onPinSession={handlePinSession}
           onImportSession={handleImportSession}
           onSetPersona={handleSetPersona}
+          onRestoreSession={handleRestoreSession}
+          onPermanentDelete={handlePermanentDelete}
         />
         {mode === 'chat' ? (
           <ChatArea
@@ -365,6 +385,7 @@ function App() {
           onClose={() => setShowPalette(false)}
         />
       )}
+      {showCheatsheet && <ShortcutCheatsheet onClose={() => setShowCheatsheet(false)} />}
     </div>
   );
 }

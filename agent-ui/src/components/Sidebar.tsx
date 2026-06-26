@@ -3,18 +3,20 @@ import type { Capabilities, ConnectionStatus, Session } from '../types';
 import { fetchThreshold, setThreshold } from '../api';
 
 interface Props {
-  capabilities:    Capabilities | null;
-  status:          ConnectionStatus;
-  sessions:        Session[];
-  activeId:        string;
-  onSwitchSession: (id: string) => void;
-  onNewSession:    () => void;
-  onDeleteSession: (id: string) => void;
-  onRenameSession: (id: string, name: string) => void;
-  onExportSession: (id: string) => void;
-  onPinSession:    (id: string) => void;
-  onImportSession: (file: File) => void;
-  onSetPersona:    (persona: string) => void;
+  capabilities:      Capabilities | null;
+  status:            ConnectionStatus;
+  sessions:          Session[];
+  activeId:          string;
+  onSwitchSession:   (id: string) => void;
+  onNewSession:      () => void;
+  onDeleteSession:   (id: string) => void;
+  onRenameSession:   (id: string, name: string) => void;
+  onExportSession:   (id: string) => void;
+  onPinSession:      (id: string) => void;
+  onImportSession:   (file: File) => void;
+  onSetPersona:      (persona: string) => void;
+  onRestoreSession:  (id: string) => void;
+  onPermanentDelete: (id: string) => void;
 }
 
 const STATUS_LABEL: Record<ConnectionStatus, string> = {
@@ -44,9 +46,13 @@ export function Sidebar({
   capabilities, status, sessions, activeId,
   onSwitchSession, onNewSession, onDeleteSession, onRenameSession,
   onExportSession, onPinSession, onImportSession, onSetPersona,
+  onRestoreSession, onPermanentDelete,
 }: Props) {
   const [threshold,        setThresholdVal]     = useState(7);
   const [persona,          setPersona]          = useState(DEFAULT_PERSONA);
+  const [selectMode,       setSelectMode]       = useState(false);
+  const [selectedIds,      setSelectedIds]      = useState<Set<string>>(new Set());
+  const [showArchived,     setShowArchived]     = useState(false);
   const [applied,          setApplied]          = useState(false);
   const [search,           setSearch]           = useState('');
   const [searchInMessages, setSearchInMessages] = useState(false);
@@ -56,8 +62,12 @@ export function Sidebar({
 
   useEffect(() => { fetchThreshold().then(setThresholdVal); }, []);
 
+  const liveSessions    = sessions.filter(s => !s.archived);
+  const archivedSessions = sessions.filter(s => s.archived);
   const localCount = sessions.reduce((n, s) => n + s.messages.filter(m => m.handled_by === 'local llm').length, 0);
   const cloudCount = sessions.reduce((n, s) => n + s.messages.filter(m => m.handled_by === 'claude').length, 0);
+  const totalHandled = localCount + cloudCount;
+  const localRate   = totalHandled > 0 ? Math.round((localCount / totalHandled) * 100) : null;
 
   function handleApply() {
     onSetPersona(persona);
@@ -81,9 +91,12 @@ export function Sidebar({
     e.target.value = '';
   }
 
-  const sorted = [...sessions].sort((a, b) => {
-    if (a.pinned && !b.pinned) return -1;
-    if (!a.pinned && b.pinned) return  1;
+  const sourceList = showArchived ? archivedSessions : liveSessions;
+  const sorted = [...sourceList].sort((a, b) => {
+    if (!showArchived) {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return  1;
+    }
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 
@@ -94,6 +107,26 @@ export function Sidebar({
     if (searchInMessages) return s.messages.some(m => m.text.toLowerCase().includes(q));
     return false;
   });
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function bulkDelete() {
+    selectedIds.forEach(id => onDeleteSession(id));
+    setSelectedIds(new Set());
+    setSelectMode(false);
+  }
+
+  function bulkExport() {
+    selectedIds.forEach(id => onExportSession(id));
+    setSelectedIds(new Set());
+    setSelectMode(false);
+  }
 
   return (
     <aside className="sidebar">
@@ -108,10 +141,18 @@ export function Sidebar({
           {capabilities?.version && <span className="tag tag--blue">v{capabilities.version}</span>}
           {capabilities?.model   && <span className="tag tag--purple">{capabilities.model}</span>}
         </div>
-        {(localCount + cloudCount) > 0 && (
+        {totalHandled > 0 && (
           <div className="savings-counter">
             <span className="savings-local">⬢ {localCount} local</span>
             <span className="savings-cloud">◈ {cloudCount} cloud</span>
+          </div>
+        )}
+        {localRate !== null && totalHandled >= 3 && (
+          <div className="local-rate">
+            <div className="local-rate-bar">
+              <div className="local-rate-fill" style={{ width: `${localRate}%` }} />
+            </div>
+            <span className="local-rate-label">{localRate}% answered locally</span>
           </div>
         )}
       </section>
@@ -178,10 +219,22 @@ export function Sidebar({
 
       <section className="sidebar-section session-section">
         <div className="session-header-row">
-          <p className="section-title" style={{ marginBottom: 0 }}>Sessions</p>
+          <p className="section-title" style={{ marginBottom: 0 }}>
+            {showArchived ? `Archived (${archivedSessions.length})` : 'Sessions'}
+          </p>
           <div className="session-header-btns">
+            <button
+              className={`btn-icon-small ${showArchived ? 'btn-icon-small--active' : ''}`}
+              title="View archived sessions"
+              onClick={() => { setShowArchived(v => !v); setSelectMode(false); setSelectedIds(new Set()); }}
+            >🗂</button>
+            <button
+              className={`btn-icon-small ${selectMode ? 'btn-icon-small--active' : ''}`}
+              title="Multi-select"
+              onClick={() => { setSelectMode(v => !v); setSelectedIds(new Set()); }}
+            >☑</button>
             <button className="btn-icon-small" title="Import session (.md)" onClick={() => fileRef.current?.click()}>↑</button>
-            <button className="btn-new-session" onClick={onNewSession} disabled={status !== 'online'}>+ New</button>
+            {!showArchived && <button className="btn-new-session" onClick={onNewSession} disabled={status !== 'online'}>+ New</button>}
           </div>
         </div>
 
@@ -222,8 +275,16 @@ export function Sidebar({
                 {all.map(session => (
             <div
               key={session.id}
-              className={`session-item ${session.id === activeId ? 'session-item--active' : ''} ${session.pinned ? 'session-item--pinned' : ''}`}
+              className={`session-item ${session.id === activeId ? 'session-item--active' : ''} ${session.pinned ? 'session-item--pinned' : ''} ${selectMode && selectedIds.has(session.id) ? 'session-item--selected' : ''}`}
             >
+              {selectMode && (
+                <input
+                  type="checkbox"
+                  className="session-checkbox"
+                  checked={selectedIds.has(session.id)}
+                  onChange={() => toggleSelect(session.id)}
+                />
+              )}
               {editingId === session.id ? (
                 <input
                   className="session-rename-input"
@@ -237,7 +298,7 @@ export function Sidebar({
                   }}
                 />
               ) : (
-                <button className="session-body" onClick={() => onSwitchSession(session.id)}>
+                <button className="session-body" onClick={() => selectMode ? toggleSelect(session.id) : onSwitchSession(session.id)}>
                   <span className="session-preview">
                     {session.pinned && <span className="pin-icon">📌</span>}
                     {getPreview(session)}
@@ -245,19 +306,33 @@ export function Sidebar({
                   <span className="session-time">{formatTime(session.createdAt)}</span>
                 </button>
               )}
-              <div className="session-actions">
-                <button className="session-action-btn" title={session.pinned ? 'Unpin' : 'Pin'} onClick={() => onPinSession(session.id)}>
-                  {session.pinned ? '★' : '☆'}
-                </button>
-                <button className="session-action-btn" title="Rename" onClick={() => startRename(session)}>✎</button>
-                <button className="session-action-btn" title="Export" onClick={() => onExportSession(session.id)}>↓</button>
-                <button className="session-action-btn session-action-btn--delete" title="Delete" onClick={() => onDeleteSession(session.id)}>×</button>
-              </div>
+              {showArchived ? (
+                <div className="session-actions">
+                  <button className="session-action-btn" title="Restore" onClick={() => onRestoreSession(session.id)}>↩</button>
+                  <button className="session-action-btn session-action-btn--delete" title="Delete forever" onClick={() => onPermanentDelete(session.id)}>🗑</button>
+                </div>
+              ) : !selectMode && (
+                <div className="session-actions">
+                  <button className="session-action-btn" title={session.pinned ? 'Unpin' : 'Pin'} onClick={() => onPinSession(session.id)}>
+                    {session.pinned ? '★' : '☆'}
+                  </button>
+                  <button className="session-action-btn" title="Rename" onClick={() => startRename(session)}>✎</button>
+                  <button className="session-action-btn" title="Export" onClick={() => onExportSession(session.id)}>↓</button>
+                  <button className="session-action-btn session-action-btn--delete" title="Archive" onClick={() => onDeleteSession(session.id)}>×</button>
+                </div>
+              )}
             </div>
                 ))}
               </div>
             );
           })}
+          {selectMode && selectedIds.size > 0 && (
+            <div className="bulk-action-bar">
+              <span className="bulk-count">{selectedIds.size} selected</span>
+              <button className="bulk-btn" onClick={bulkExport}>↓ Export</button>
+              <button className="bulk-btn bulk-btn--danger" onClick={bulkDelete}>Archive</button>
+            </div>
+          )}
         </div>
       </section>
 
@@ -266,7 +341,7 @@ export function Sidebar({
           <div className={`dot dot--${status}`} />
           <span className="muted">{STATUS_LABEL[status]}</span>
         </div>
-        <div className="shortcut-hint">Ctrl+K command palette · Alt+N new session</div>
+        <div className="shortcut-hint">Ctrl+K palette · Alt+N new · Ctrl+/ shortcuts</div>
       </div>
     </aside>
   );

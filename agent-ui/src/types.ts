@@ -46,6 +46,7 @@ export interface Session {
   id: string;
   name?: string;
   pinned?: boolean;
+  archived?: boolean;
   createdAt: string;
   messages: ChatMessage[];
   agentName?: string;
