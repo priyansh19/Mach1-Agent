@@ -1,0 +1,10 @@
+langchain
+langchain-ollama
+langchain-community
+langchain-anthropic
+langchain-mcp-adapters
+langgraph
+fastapi
+uvicorn
+chromadb
+duckduckgo-search
