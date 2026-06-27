@@ -1,171 +1,120 @@
-# Local AI Agent — Build Log
+# Mach1 — Local-First AI Agent
 
-> A local-first AI agent built incrementally, one phase at a time. Each phase adds one capability. The final product is a three-mode desktop webapp: Chat · Cowork · Code — powered by `gemma4:26b` running entirely on your machine, with Claude as a fallback only when the local model isn't confident enough.
+> *"Sometimes you gotta run before you can walk."* — Tony Stark
 
----
-
-## The Idea
-
-Most AI tools route everything to the cloud. This project builds the opposite: an agent that handles 90%+ of requests locally (zero cost, private, fast), and only escalates to Claude when the local model genuinely doesn't know. The result is a tool that feels like Claude Desktop but runs on your hardware.
-
-**Stack:** LangChain + LangGraph · Ollama (gemma4:26b) · FastAPI · React + TypeScript + Vite
+Mach1 is a personal AI agent built for speed, privacy, and intelligence. It runs locally using open-source LLMs, routes hard questions to Claude only when needed, and remembers everything across sessions — like a co-worker who never forgets.
 
 ---
 
-## What's Built
+## Architecture
 
-### Phase 1 — Simple LangChain Agent (`p1-Simple-Langchain-AI-Agent/`)
-The foundation. A LangChain chatbot with `ChatOllama` and a basic message history loop.
-- Model: `llama3.2` (later upgraded to `gemma4:26b`)
-- No tools, no memory — just raw conversation
-- Introduced the `HumanMessage` / `AIMessage` / `SystemMessage` pattern
-
-### Phase 2 — Persona Agent (`p2-Giving-ai-agent-persona/`)
-Added system-level personality and a FastAPI server.
-- Custom persona via `SystemMessage`
-- FastAPI with CORS, Pydantic `BaseModel`
-- Vite + React frontend connected via proxy (`5173 → 8000`)
-- `/persona` endpoint to swap personality at runtime
-- First version of the shared UI
-
-### Phase 3 — Tool-Using Agent (`p3-Tool-Using-Agent/`)
-The agent can now read and write files on your machine.
-- Tools: `create_file`, `read_file`, `edit_file`, `append_to_file` (all in `workspace/`)
-- Migrated from `langchain.agents` to **LangGraph** `create_react_agent`
-- `@tool` decorator with precise docstrings as tool descriptions
-- Tool call display cards in the UI (collapsible, input/output)
-
-### Phase 4 — Confidence Scoring Agent (`p4-Confidence-Scoring-Agent/`)
-The agent evaluates how confident it is before answering.
-- Separate LLM call scores each message 1–10 before responding
-- Score returned alongside response in API
-- Confidence badge in UI (green ≥8 / yellow 5–7 / red <5)
-- `/capabilities` endpoint — UI dynamically shows/hides features based on what the agent supports
-
-### Phase 5 — Triage Routing Agent (`p5-Triage-Routing-Agent/`) ← current
-The core intelligence: route based on confidence.
-- `CONFIDENCE_THRESHOLD = 7` — score ≥7 stays local, score <7 escalates to Claude CLI
-- Claude called via `subprocess.run(["claude", "-p", ...])` — no API key needed, uses existing CLI auth
-- Full conversation history passed to Claude for context
-- `handled_by` field in API response — UI shows "via Local" or "via Claude" badge
-- Session management UI: multiple isolated sessions, session list, rename, export, search
-- All 7 UI features: copy button, timestamps, session rename, export .md, search, char counter, retry button
+![Mach1 Architecture](./mach1-architecture.png)
 
 ---
 
-## The UI (`agent-ui/`)
+## How It Works
 
-A shared plug-and-play React UI that connects to any agent version via the `/capabilities` endpoint. Features auto-appear/disappear based on what the active agent supports.
+**Every message goes through this pipeline:**
 
-**Currently implemented:**
-- Multi-session management (localStorage persistence, session isolation)
-- Copy button on assistant messages
-- Message timestamps (HH:MM per message)
-- Inline session rename
-- Export session as Markdown download
-- Search sessions in sidebar
-- Input character counter (2000 char limit)
-- Retry failed messages
-- Stop generation (AbortController)
-- Auto-title sessions from first message
-- Jump-to-bottom floating button
-- Persistent draft per session
-- Edit & re-send any user message
-- Pin sessions (sort to top with gold border)
-- Import session from .md file
-- Keyboard shortcuts: `Ctrl+K` command palette · `Alt+N` new session
-- Bookmark individual messages + filter to bookmarked only
-- Undo send (3-second grace period after each message)
-- Confidence badge per message
-- Handled-by badge (via Local / via Claude)
-- Collapsible tool-step cards with input/output
+1. **User Prompt** + chat history + system prompt → loaded into **Working Memory**
+2. Working Memory is enriched with relevant context via **RAG Top-k search** from Episodic and Semantic memory stores, plus **Skill.md** from Procedural memory
+3. A **Triaging Agent** (local LLM scoring agent) scores how confidently the local model can handle the request
+   - **Score > 7** → answered by the **Local LLM Agent** directly
+   - **Score < 7** → routed to **Claude** via MCP connector → Claude submits response back through the Local LLM Agent
+4. The response is returned to the user
+5. The exchange is **saved to memory** — and if N chats have accumulated, the **Summarizer Agent** distills them into facts that flow back into Semantic Memory
 
 ---
 
-## What's Coming
+## Memory System
 
-### Near Term — Agent Phases
-| Phase | Name | What it adds |
-|-------|------|-------------|
-| P6 | Episodic Memory Agent | Vector store — agent remembers past conversations |
-| P7 | Semantic Memory Agent | Extracts long-term facts from conversations |
-| P8 | Summarizer Agent | Auto-compresses long histories to stay under context limits |
+| Layer | Type | What's Stored | How Retrieved |
+|---|---|---|---|
+| **Working Memory** | In-process RAM | Current conversation + injected context | Direct (always present) |
+| **Episodic Memory** | ChromaDB vector store | Dated events, past chat history | RAG Top-k similarity search |
+| **Semantic Memory** | ChromaDB vector store | Durable facts, user profile | RAG Top-k similarity search |
+| **Procedural Memory** | Files on disk | Skill.md, how to act with user | Loaded at startup via Skill.md |
 
-### The UI Transformation — Three Modes
-The current UI is a single chat surface. It's being redesigned as a three-mode app:
-
-**Chat mode** — what we have now, refined. Full-text search, artifact side panel, slash commands, inline citations, conversation branching, cost-per-answer display.
-
-**Cowork mode** — agentic task management. Natural language → decomposed plan → approval gate → execution → output. Dual-zone layout (conversation left, work output right). Document editing, scheduled/recurring tasks, audit log with undo.
-
-**Code mode** — software development workspace. Diff pane, terminal pane, file editor, preview pane, parallel sessions with git worktree isolation, CI status bar.
-
-### What Makes This Different from Every Other AI Tool
-
-1. **Local-first triage** — runs 90%+ locally, escalates only when genuinely uncertain. No other tool does this with a visible, tunable confidence threshold
-2. **Cost transparency** — every message shows `$0.00` (local) or `$0.003` (cloud). Running cost counter, lifetime local rate, "what would 100% cloud have cost?"
-3. **Privacy by default** — local responses get a lock icon: "This response never left your machine"
-4. **Interactive routing** — borderline messages (confidence 5–6) show: "Send locally anyway or escalate?" You choose
-5. **Confidence tuning** — live slider to adjust the threshold in real time; the model learns which domains it handles well
-6. **Zero API key required** — Claude is called via CLI subprocess using your existing auth
+The **Summarizer Agent** runs only when total saved chats reaches N — it distills raw episodic memory into clean semantic facts, keeping the vector store sharp over time.
 
 ---
 
-## The Final Product
+## Triage Routing
 
-**Name: TBD** (something that reflects local-first intelligence — not "milestone agent")
+Every message is scored 1–10 by a local LLM before answering:
 
-A single app that combines all eight agent phases into one intelligent, self-routing system:
-- Remembers everything (episodic + semantic memory)
-- Handles 90%+ of questions locally with zero cost
-- Escalates gracefully to Claude when genuinely needed
-- Works across Chat, Cowork, and Code workflows
-- Tracks its own cost savings in real time
-- Runs entirely on your PC
+| Score | Action | Cost |
+|---|---|---|
+| ≥ threshold (default 7) | Answered locally by Ollama | Free, private, instant |
+| < threshold | Routed to Claude via MCP | Tokens, but powerful |
 
-The positioning: the smartest local co-worker that exists. Not a cloud service you pay per token. Not a dumb local model. Something in between that's smarter than either.
+The threshold is adjustable live from the UI — no restart needed. The goal: **90%+ of messages answered locally**.
 
 ---
 
-## Project Structure
+## Three Modes
+
+| Mode | Purpose |
+|---|---|
+| **Chat** | Conversational AI with memory, routing badges, artifact panel, quick-reply chips |
+| **Cowork** | Agentic task queue — describe a task, agent plans + executes with approval gates |
+| **Code** | File browser, diff viewer, terminal pane, code-focused agent sessions |
+
+---
+
+## Tech Stack
+
+| Layer | Tech |
+|---|---|
+| Agent framework | LangChain + LangGraph (`create_react_agent`) |
+| Local LLM | Ollama — `gemma3:4b` / `gemma4:27b` |
+| Cloud fallback | Claude (Anthropic) via MCP connector |
+| Embeddings | `nomic-embed-text` via Ollama |
+| Vector DB | ChromaDB (embedded, no server needed) |
+| API server | FastAPI + Uvicorn |
+| UI | React + TypeScript + Vite |
+| Styling | Vanilla CSS (GitHub-dark design system) |
+
+---
+
+## Build Phases
 
 ```
-langchain-agents/
-├── p1-Simple-Langchain-AI-Agent/   # Phase 1 — basic LangChain chatbot
-├── p2-Giving-ai-agent-persona/     # Phase 2 — persona + FastAPI server
-├── p3-Tool-Using-Agent/            # Phase 3 — file tools + LangGraph
-├── p4-Confidence-Scoring-Agent/    # Phase 4 — confidence scoring
-├── p5-Triage-Routing-Agent/        # Phase 5 — triage routing (CURRENT)
-│   ├── agent.py                    # Core agent: scoring + routing + tools
-│   ├── server.py                   # FastAPI: /chat /capabilities /clear
-│   └── workspace/                  # Agent's file sandbox
-├── agent-ui/                       # Shared React + TypeScript UI
-│   └── src/
-│       ├── App.tsx                 # Main state, all handlers
-│       ├── api.ts                  # fetch wrappers
-│       ├── types.ts                # Shared types
-│       └── components/
-│           ├── Sidebar.tsx         # Sessions, features, persona, agent info
-│           ├── ChatArea.tsx        # Message list, input, stop/undo
-│           └── MessageBubble.tsx   # Individual message with actions
-└── docs/
-    └── FEATURE_PLAN.md             # Full UI feature roadmap (three modes)
+mach-1/
+├── p1-Simple-Langchain-AI-Agent/    ✅  Phase 1: Basic LangChain chatbot
+├── p2-Giving-ai-agent-persona/      ✅  Phase 2: Persona + FastAPI server
+├── p3-Tool-Using-Agent/             ✅  Phase 3: File tools + LangGraph
+├── p4-Confidence-Scoring-Agent/     ✅  Phase 4: Confidence scoring (1–10)
+├── p5-Triage-Routing-Agent/         ✅  Phase 5: Local vs Claude routing
+├── p6-Episodic-Memory-Agent/        ✅  Phase 6: ChromaDB episodic memory
+├── p7-Semantic-Memory-Agent/        🔧  Phase 7: Fact extraction + semantic store
+├── p8-Summarizer-Agent/             ⬜  Phase 8: Auto-consolidate every N chats
+├── p9-Three-Mode-Shell/             ⬜  Phase 9: Chat / Cowork / Code shell
+├── p10-Cowork-Mode/                 ⬜  Phase 10: Task cards + approval gates
+├── p11-Code-Mode/                   ⬜  Phase 11: Diff, terminal, file editor
+└── agent-ui/                        ✅  React + TypeScript UI (all phases)
 ```
+
+**Milestone:** Combine all phases → **Mach1 v1.0**
 
 ---
 
 ## Running Locally
 
 ```bash
-# Start Ollama with gemma4:26b
-ollama pull gemma4:26b
+# 1. Start Ollama with your model
+ollama pull gemma3:4b
+ollama pull nomic-embed-text
 ollama serve
 
-# Start the agent server (from p5-Triage-Routing-Agent/)
+# 2. Start the agent server (from the latest phase folder)
+cd p7-Semantic-Memory-Agent
 pip install -r requirements.txt
 python server.py
+# → http://localhost:8000
 
-# Start the UI (from agent-ui/)
+# 3. Start the UI
+cd ../agent-ui
 npm install
 npm run dev
 # → http://localhost:5173
@@ -173,15 +122,14 @@ npm run dev
 
 ---
 
-## Tech Stack
+## What Makes This Different
 
-| Layer | Tech |
-|-------|------|
-| LLM runtime | Ollama (local) + Claude CLI (fallback) |
-| Agent framework | LangGraph `create_react_agent` |
-| LLM interface | LangChain `ChatOllama` |
-| API server | FastAPI + Uvicorn |
-| Frontend | React 18 + TypeScript + Vite |
-| State | React state + localStorage |
-| Styling | Vanilla CSS (GitHub-dark design system) |
-| Markdown | `react-markdown` + `remark-gfm` |
+1. **Local-first triage** — runs 90%+ locally, escalates only when genuinely uncertain. Visible, tunable confidence threshold
+2. **Cost transparency** — every message shows `$0.00` (local) or `~$0.003` (cloud). Running cost counter + lifetime local rate
+3. **Privacy by default** — local responses show a lock icon: *"This response never left your machine"*
+4. **Memory that lasts** — remembers past conversations, extracts long-term facts, distills them over time
+5. **Zero API key required** — Claude is called via CLI/MCP using your existing auth
+
+---
+
+*Built by Priyansh · [priyansh.9071@gmail.com](mailto:priyansh.9071@gmail.com)*

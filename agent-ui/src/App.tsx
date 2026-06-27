@@ -6,6 +6,8 @@ import { ChatArea } from './components/ChatArea';
 import { CommandPalette, type Command } from './components/CommandPalette';
 import { TabBar, type AppMode } from './components/TabBar';
 import { ShortcutCheatsheet } from './components/ShortcutCheatsheet';
+import { CoworkArea } from './components/CoworkArea';
+import { CodeArea } from './components/CodeArea';
 
 let msgCounter = 0;
 const uid          = () => `msg-${++msgCounter}`;
@@ -375,8 +377,10 @@ function App() {
             draft={currentDraft}
             onDraftChange={setDraft}
           />
+        ) : mode === 'cowork' ? (
+          <CoworkArea />
         ) : (
-          <ModePlaceholder mode={mode} />
+          <CodeArea />
         )}
       </div>
       {showPalette && (
