@@ -210,5 +210,5 @@ if __name__ == "__main__":
     # print(chat_claude("what is quantum entanglement?", [])) # test for claude chat
     print("---------------------------------------------------------------")
     print(chat("what is capital of France?")) # test for triaging agent
-    print("---------------------------------------------------------------")
-    print(chat("Predict the exact outcome of next USA elections?")) # test for triaging agent
+    # print("---------------------------------------------------------------")
+    # print(chat("Predict the exact outcome of next USA elections?")) # test for triaging agent

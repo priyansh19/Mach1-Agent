@@ -49,6 +49,9 @@ def chat(req: ChatRequest):
 class ConfigRequest(BaseModel):
     threshold: int
 
+class ClearRequest(BaseModel):
+    session_id: str = None
+
 @app.post("/clear")
 def clear_history(req: ClearRequest = None):
     sid = req.session_id if req else None
@@ -73,6 +76,3 @@ def create_session():
 def delete_session(session_id: str):
     agent.delete_session(session_id)
     return {"status": "deleted"}
-
-class ClearRequest(BaseModel):
-    session_id: str = None
